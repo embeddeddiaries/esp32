@@ -70,47 +70,53 @@ void ssd1306SendData(uint8_t *data,uint16_t size)
 
 
 void ssd1306_init() {
-#if 1
 
 
-	ssd1306SendCmd(0xAE);
-	ssd1306SendCmd(0x20);
+	ssd1306SendCmd(0xAE);	//Turn the OLED panel display OFF.
 
-	ssd1306SendCmd(0x00);
-	ssd1306SendCmd(0xB0);
+	ssd1306SendCmd(0x20);	//Set Memory Addressing Mode as
+	ssd1306SendCmd(0x00);	//Horizontal Addressing Mode
 
-	ssd1306SendCmd(0xC8);
-	ssd1306SendCmd(0x00);
-	ssd1306SendCmd(0x10);
+	ssd1306SendCmd(0xB0);	//Page Start Address for Page Addressing Mode
 
-	ssd1306SendCmd(0xFF);
-	ssd1306SendCmd(0xA1);
+	ssd1306SendCmd(0xC8);	//COM Output Scan Direction as normal
 
-	ssd1306SendCmd(0xA6);
+	ssd1306SendCmd(0x00);	//Lower Column Start Address for Page Addressing Mode
+	ssd1306SendCmd(0x10);	//Higher Column Start Address for Page Addressing Mode
 
-	ssd1306SendCmd(0xA8);
-	ssd1306SendCmd(0x3F);
-	ssd1306SendCmd(0xA4);
+	ssd1306SendCmd(0x40);	//Display Start Line 0 - 63
 
-	ssd1306SendCmd(0xD3);
-	ssd1306SendCmd(0x00);
+	ssd1306SendCmd(0x81);	//Contrast Control
+	ssd1306SendCmd(0xFF);	//256
 
-	ssd1306SendCmd(0xD5);
+	ssd1306SendCmd(0xA1);	//Segment Re-map - column address 127 is mapped to SEG0
+
+	ssd1306SendCmd(0xA6);	//Normal display
+
+	ssd1306SendCmd(0xA8);	//Multiplex Ratio
+	ssd1306SendCmd(0x3F);	// 64MUX
+
+	ssd1306SendCmd(0xA4);	//Entire Display ON - Resume to RAM content display
+
+	ssd1306SendCmd(0xD3);	//Display Offset
+	ssd1306SendCmd(0x00);	//Set vertical shift by COM from 0d~63d
+
+	ssd1306SendCmd(0xD5);	//Display Clock Divide Ratio/Oscillator Frequency
 	ssd1306SendCmd(0xF0);
 
-	ssd1306SendCmd(0xD9);
+	ssd1306SendCmd(0xD9);	//Pre-charge Period
 	ssd1306SendCmd(0x22);
-	ssd1306SendCmd(0xDA);
 
-	ssd1306SendCmd(0x12);
-	ssd1306SendCmd(0xDB);
 
-	ssd1306SendCmd(0x20);
-	ssd1306SendCmd(0x8D);
+	ssd1306SendCmd(0xDA);	//COM Pins Hardware Configuration 
+	ssd1306SendCmd(0x12);	//Alternative
 
-	ssd1306SendCmd(0x14);
-	ssd1306SendCmd(0xAF);
-#endif
+	ssd1306SendCmd(0xDB);	//VCOMH Deselect Level
+	ssd1306SendCmd(0x20);	//0.77 x VCC
+
+	ssd1306SendCmd(0x8D);	//Charge Pump Setting
+	ssd1306SendCmd(0x14);	//Enable charge pump during display on
+	ssd1306SendCmd(0xAF);	//Turn the OLED panel display ON.
 
 
 }
@@ -180,7 +186,7 @@ void ssd1306SendChar(char ch)
 void ssd1306_display_text(void * arg)
 {
 
-	char str[] = "Embedded DiariesABCD\n1234";
+	char *str = (char *)arg;
 	uint8_t column = 0,page = 0;
 	ssd1306SendCmd(0xB0 + page++);
 	ssd1306SendCmd(0x00);
@@ -265,12 +271,5 @@ void app_main(void)
 	ssd1306_init();
 	ssd1306DisplayClear();
 //	ssd1306FillDisplay();
-	//xTaskCreate(&task_ssd1306_display_pattern, "ssd1306_display_pattern",  2048, NULL, 6, NULL);
-//	xTaskCreate(task_ssd1306_display_clear, "ssd1306_display_clear",  2048, NULL, 6, NULL);
-	//vTaskDelay(100/portTICK_PERIOD_MS);
-	xTaskCreate(ssd1306_display_text, "ssd1306_display_clear",  2048, NULL, 6, NULL);
-	//xTaskCreate(task_ssd1306_display_textOld, "ssd1306_display_text",  2048,
-	//		(void *)"Hello world!\nMulitine is OK!\n1 2 3 4 5", 6, NULL);
-	//xTaskCreate(task_ssd1306_display_text, "ssd1306_display_clear",  2048, NULL, 6, NULL);
-	//	xTaskCreate(task_ssd1306_contrast, "ssid1306_contrast", 2048, NULL, 6, NULL);
+	xTaskCreate(ssd1306_display_text, "ssd1306_display_clear",  2048,"Welcome to \nEmbedded Diaries\n 1 2 3 4 5", 6, NULL);
 }
