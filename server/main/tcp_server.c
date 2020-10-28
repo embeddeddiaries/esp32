@@ -32,7 +32,7 @@
 static const char *TAG = "example";
 
 
-static void tcp_server_task(void *pvParameters)
+static void tcpServer(void *pvParameters)
 {
 	int addr_family = AF_INET;
 	int ip_protocol = 0;
@@ -44,6 +44,7 @@ static void tcp_server_task(void *pvParameters)
 	dest_addr_ip4->sin_port = htons(PORT);
 	ip_protocol = IPPROTO_IP;
 
+	//Create a socket
 	int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
 	if (listen_sock < 0) {
 		ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
@@ -55,14 +56,15 @@ static void tcp_server_task(void *pvParameters)
 
 	ESP_LOGI(TAG, "Socket created");
 
+	//Bind the socket to an address
 	int err = bind(listen_sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
 	if (err != 0) {
 		ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-		ESP_LOGE(TAG, "IPPROTO: %d", addr_family);
 		goto CLEAN_UP;
 	}
 	ESP_LOGI(TAG, "Socket bound, port %d", PORT);
 
+	//Listen for connections
 	err = listen(listen_sock, 1);
 	if (err != 0) {
 		ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
@@ -74,6 +76,7 @@ static void tcp_server_task(void *pvParameters)
 
 	struct sockaddr_in source_addr; 
 	uint addr_len = sizeof(source_addr);
+	//Accept a connection, This call typically blocks until a client connects with the server.
 	int sock = accept(listen_sock, (struct sockaddr *)&source_addr, &addr_len);
 	if (sock < 0) {
 		ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
@@ -82,6 +85,7 @@ static void tcp_server_task(void *pvParameters)
 
 	while (1) {
 		
+		//Send and receive data
 		int len,to_write;
 		char *rx_buffer = NULL,rx;
 		char rx_buffer0[] = "Led is Off";
@@ -151,5 +155,5 @@ void app_main(void)
 
         gpio_config(&io_config);
 
-	xTaskCreate(tcp_server_task, "tcp_server", 4096,NULL, 5, NULL);
+	xTaskCreate(tcpServer, "tcp_server", 4096,NULL, 5, NULL);
 }
