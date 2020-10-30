@@ -4,15 +4,18 @@
 #include <arpa/inet.h> 
 #include <unistd.h> 
 #include <string.h> 
+
 #define PORT 3333 
+#define SERVERIP	"192.168.1.5"
 
 int main(int argc, char const *argv[]) 
 { 
-	int sock = 0, valread; 
+	int sock = 0; 
 	struct sockaddr_in serv_addr; 
-	//char *hello = "Hello from client"; 
-	char hello = '1',option; 
+	
+	char cmd,option; 
 	char buffer[1024] = {0}; 
+	//Create a socket
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
 	{ 
 		printf("\n Socket creation error \n"); 
@@ -22,14 +25,13 @@ int main(int argc, char const *argv[])
 	serv_addr.sin_family = AF_INET; 
 	serv_addr.sin_port = htons(PORT); 
 	
-	// Convert IPv4 and IPv6 addresses from text to binary form 
-//	if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0) 
-	if(inet_pton(AF_INET, "192.168.1.5", &serv_addr.sin_addr)<=0) 
+	// Convert IPv4 addresses from text to binary form 
+	if(inet_pton(AF_INET,SERVERIP, &serv_addr.sin_addr)<=0) 
 	{ 
 		printf("\nInvalid address/ Address not supported \n"); 
 		return -1; 
 	} 
-
+	//Establish a connection with a TCP server
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
 	{ 
 		printf("\nConnection Failed \n"); 
@@ -38,16 +40,17 @@ int main(int argc, char const *argv[])
 
 	do
 	{
-		hello = '8';
-		printf("\nEnter on or off = ");
-		scanf("%c",&hello); 
-		send(sock , &hello , 1 , 0 ); 
-		valread = read( sock , buffer, 1024); 
+		//Send and receive data
+		printf("\nEnter 1 - on or 0 - off = ");
+		scanf("%c",&cmd); 
+		send(sock , &cmd , 1 , 0 ); 
+		read( sock , buffer, 1024); 
 		printf("%s\n",buffer );
 		printf("Do you want to continue = ");
 		scanf("\n%c",&option); 
 		getchar();
 	}while(option == 'y' || option == 'Y');
+	close(sock);
 	return 0; 
 } 
 
