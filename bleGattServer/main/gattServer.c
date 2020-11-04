@@ -23,8 +23,6 @@
 
 #define PROFILE_NUM 2
 #define PROFILE_A_APP_ID 0
-#define GATTS_SERVICE_UUID_TEST_A   0x00FF
-#define GATTS_CHAR_UUID_TEST_A      0xFF01
 
 #define TEST_DEVICE_NAME            "Embedded Diaries BLE"
 #define TEST_MANUFACTURER_DATA_LEN  10
@@ -57,7 +55,7 @@ static uint8_t adv_char_uuid128[16] = {
 
 
 // The length of adv data must be less than 31 bytes
-static uint8_t test_manufacturer[TEST_MANUFACTURER_DATA_LEN] =  {0x12, 0x23, 0x45, 0x56};
+static uint8_t test_manufacturer[TEST_MANUFACTURER_DATA_LEN] =  {0x12, 0x34, 0x56, 0x78};
 //adv data
 static esp_ble_adv_data_t adv_data = {
     .set_scan_rsp = false,
@@ -66,12 +64,12 @@ static esp_ble_adv_data_t adv_data = {
     .min_interval = 0x0006, //slave connection min interval, Time = min_interval * 1.25 msec
     .max_interval = 0x0010, //slave connection max interval, Time = max_interval * 1.25 msec
     .appearance = 0x00,
-    .manufacturer_len = TEST_MANUFACTURER_DATA_LEN, //0
-    .p_manufacturer_data = &test_manufacturer[0],   //NULL
+    .manufacturer_len = TEST_MANUFACTURER_DATA_LEN, 
+    .p_manufacturer_data = &test_manufacturer[0],   
     .service_data_len = 0,
     .p_service_data = NULL,
-    .service_uuid_len = sizeof(adv_service_uuid128),
-    .p_service_uuid = adv_service_uuid128,
+    .service_uuid_len = 0,
+    .p_service_uuid = NULL,
     .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
@@ -125,24 +123,20 @@ static struct gatts_profile_inst gl_profile_tab[PROFILE_NUM] = {
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     switch (event) {
+	//Event after configuring advertisement data
    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
         adv_config_done &= (~adv_config_flag);
         if (adv_config_done == 0){
             esp_ble_gap_start_advertising(&adv_params);
         }
         break;
-    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-        adv_config_done &= (~scan_rsp_config_flag);
-        if (adv_config_done == 0){
-            esp_ble_gap_start_advertising(&adv_params);
-        }
-        break;
-    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+   case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
         //advertising start complete event to indicate advertising start successfully or failed
         if (param->adv_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
             ESP_LOGE(GATTS_TAG, "Advertising start failed\n");
         }
         break;
+	//Event after advertisement stops
     case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
         if (param->adv_stop_cmpl.status != ESP_BT_STATUS_SUCCESS) {
             ESP_LOGE(GATTS_TAG, "Advertising stop failed\n");
@@ -150,6 +144,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             ESP_LOGI(GATTS_TAG, "Stop adv successfully\n");
         }
         break;
+	//Event after connection with client 
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
          ESP_LOGI(GATTS_TAG, "update connection params status = %d, min_int = %d, max_int = %d,conn_int = %d,latency = %d, timeout = %d",
                   param->update_conn_params.status,
@@ -166,40 +161,42 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
     switch (event) {
+    //Register application event : First event after start
     case ESP_GATTS_REG_EVT:
         ESP_LOGI(GATTS_TAG, "REGISTER_APP_EVT, status %d, app_id %d\n", param->reg.status, param->reg.app_id);
         gl_profile_tab[PROFILE_A_APP_ID].service_id.is_primary = true;
         gl_profile_tab[PROFILE_A_APP_ID].service_id.id.inst_id = 0x00;
         gl_profile_tab[PROFILE_A_APP_ID].service_id.id.uuid.len = ESP_UUID_LEN_128;
 	memcpy(gl_profile_tab[PROFILE_A_APP_ID].service_id.id.uuid.uuid.uuid128,adv_service_uuid128,ESP_UUID_LEN_128);
-
+	
+	//Setting the device name
         esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(TEST_DEVICE_NAME);
         if (set_dev_name_ret){
             ESP_LOGE(GATTS_TAG, "set device name failed, error code = %x", set_dev_name_ret);
         }
-       //config adv data
+       //config advertisement  data
         esp_err_t ret = esp_ble_gap_config_adv_data(&adv_data);
         if (ret){
             ESP_LOGE(GATTS_TAG, "config adv data failed, error code = %x", ret);
         }
         adv_config_done |= adv_config_flag;
-        esp_ble_gatts_create_service(gatts_if, &gl_profile_tab[PROFILE_A_APP_ID].service_id, 3); //GATTS_NUM_HANDLE_TEST_A);
+	//Create new service
+        esp_ble_gatts_create_service(gatts_if, &gl_profile_tab[PROFILE_A_APP_ID].service_id, 3); 
         break;
 	
-    case ESP_GATTS_WRITE_EVT: {
-        //ESP_LOGI(GATTS_TAG, "GATT_WRITE_EVT, conn_id %d, trans_id %d, handle %d", param->write.conn_id, param->write.trans_id, param->write.handle);
-
-        	if (!param->write.is_prep)
+    //Characterstics write event
+    case ESP_GATTS_WRITE_EVT: 
+	{
+		if (!param->write.is_prep)
 		{
-	            //ESP_LOGI(GATTS_TAG, "GATT_WRITE_EVT, value len %d, value :", param->write.len);
-        	    //esp_log_buffer_hex(GATTS_TAG, param->write.value, param->write.len);
-		    ledCmd = param->write.value[0];
-		    xTaskNotify(ledTask_h,NOTIFY_LED_EVENT,eSetBits);
+			ledCmd = param->write.value[0];
+			xTaskNotify(ledTask_h,NOTIFY_LED_EVENT,eSetBits);
 		}
 
-            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id,ESP_GATT_OK, NULL);
+		esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id,ESP_GATT_OK, NULL);
 	break;
 	}
+    //Event after creating an service
     case ESP_GATTS_CREATE_EVT:
         ESP_LOGI(GATTS_TAG, "CREATE_SERVICE_EVT, status %d,  service_handle %d\n", param->create.status, param->create.service_handle);
         gl_profile_tab[PROFILE_A_APP_ID].service_handle = param->create.service_handle;
@@ -208,6 +205,8 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
 
         esp_ble_gatts_start_service(gl_profile_tab[PROFILE_A_APP_ID].service_handle);
         a_property = ESP_GATT_CHAR_PROP_BIT_WRITE;
+
+	//Create new characterstics within a service
         esp_err_t add_char_ret = esp_ble_gatts_add_char(gl_profile_tab[PROFILE_A_APP_ID].service_handle, &gl_profile_tab[PROFILE_A_APP_ID].char_uuid,
                                                         ESP_GATT_PERM_WRITE,
                                                         a_property,
@@ -216,7 +215,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
             ESP_LOGE(GATTS_TAG, "add char failed, error code =%x",add_char_ret);
         }
         break;
-
+    //Event after creating an characterstics
     case ESP_GATTS_ADD_CHAR_EVT: {
         uint16_t length = 0;
         const uint8_t *prf_char;
@@ -237,11 +236,11 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         }
 	break;
 	}
-
+    
+    //Connection event
     case ESP_GATTS_CONNECT_EVT: {
         esp_ble_conn_update_params_t conn_params = {0};
         memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
-        /* For the IOS system, please reference the apple official documents about the ble connection parameters restrictions. */
         conn_params.latency = 0;
         conn_params.max_int = 0x20;    // max_int = 0x20*1.25ms = 40ms
         conn_params.min_int = 0x10;    // min_int = 0x10*1.25ms = 20ms
@@ -255,6 +254,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         esp_ble_gap_update_conn_params(&conn_params);
         break;
     }
+    //Disconnect event
     case ESP_GATTS_DISCONNECT_EVT:
         ESP_LOGI(GATTS_TAG, "ESP_GATTS_DISCONNECT_EVT, disconnect reason 0x%x", param->disconnect.reason);
         esp_ble_gap_start_advertising(&adv_params);
@@ -332,17 +332,17 @@ static void ledTask(void *pvParameters)
 void app_main(void)
 {
     esp_err_t ret;
-
-    // Initialize NVS.
+    // initializing the non-volatile storage library. This library allows to save key-value pairs in 
+    //flash memory and is used by some components such as the Wi-Fi library to save the SSID and password.
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK( ret );
-
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
-
+    
+    //initializes the BT controller with default configuration
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     ret = esp_bt_controller_init(&bt_cfg);
     if (ret) {
@@ -350,11 +350,15 @@ void app_main(void)
         return;
     }
 
+    //BT controller is initialized and enabled in BLE mode
     ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (ret) {
         ESP_LOGE(GATTS_TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
+
+    //The Bluedroid stack, which includes the common definitions and 
+    //APIs for both BT Classic and BLE, is initialized and enabled
     ret = esp_bluedroid_init();
     if (ret) {
         ESP_LOGE(GATTS_TAG, "%s init bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
@@ -365,24 +369,28 @@ void app_main(void)
         ESP_LOGE(GATTS_TAG, "%s enable bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
+    
+    //Register a callback function for gatts event handler
     ret = esp_ble_gatts_register_callback(gatts_event_handler);
     if (ret){
         ESP_LOGE(GATTS_TAG, "gatts register error, error code = %x", ret);
         return;
     }
 
+    //Register a callback function for gap event handler
    ret = esp_ble_gap_register_callback(gap_event_handler);
     if (ret){
         ESP_LOGE(GATTS_TAG, "gap register error, error code = %x", ret);
         return;
     }
-
+    //Application Profiles are registered using the Application ID
     ret = esp_ble_gatts_app_register(PROFILE_A_APP_ID);
     if (ret){
         ESP_LOGE(GATTS_TAG, "gatts app register error, error code = %x", ret);
         return;
     }
-
+   
+   //Led control task
    xTaskCreate(ledTask, "Gpio Led task", 4096,NULL, 5, &ledTask_h);
 }
 
